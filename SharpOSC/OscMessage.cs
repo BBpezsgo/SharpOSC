@@ -1,160 +1,313 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Collections.Immutable;
 using System.Text;
 
-namespace SharpOSC
+namespace SharpOSC;
+
+public class OscMessage : OscPacket
 {
-	public class OscMessage : OscPacket
-	{
-		public string Address;
-		public List<object> Arguments;
+    public readonly string Address;
+    public readonly ImmutableArray<object?> Arguments;
 
-		public OscMessage(string address, params object[] args)
-		{
-			this.Address = address;
-			Arguments = new List<object>();
-			Arguments.AddRange(args);
-		}
+    public OscMessage(string address, params object?[] args)
+    {
+        Address = address;
+        Arguments = args.ToImmutableArray();
+    }
 
-		public override byte[] GetBytes()
-		{
-			List<byte[]> parts = new List<byte[]>();
+    public OscMessage(string address, ImmutableArray<object?> args)
+    {
+        Address = address;
+        Arguments = args;
+    }
 
-			List<object> currentList = Arguments;
-			int ArgumentsIndex = 0;
+    static int FirstIndexAfter(ReadOnlySpan<byte> items, int start, Func<byte, bool> predicate)
+    {
+        int retVal = 0;
+        foreach (var item in items)
+        {
+            if (retVal >= start && predicate(item)) return retVal;
+            retVal++;
+        }
+        return -1;
+    }
 
-			string typeString = ",";
-			int i = 0; 
-			while (i < currentList.Count)
-			{
-				var arg = currentList[i];
+    /// <summary>
+    /// Takes in an OSC bundle package in byte form and parses it into a more usable OscBundle object
+    /// </summary>
+    /// <returns>
+    /// Message containing various arguments and an address
+    /// </returns>
+    public static void DeserializeArgument(ReadOnlySpan<byte> buffer, ReadOnlySpan<char> types, ref int typeIndex, ref int bufferIndex, List<object?> arguments)
+    {
+        char type = types[typeIndex++];
+        switch (type)
+        {
+            case '\0':
+                break;
 
-				string type = (arg != null) ? arg.GetType().ToString() : "null";
-				switch (type)
-				{
-					case "System.Int32":
-						typeString += "i";
-						parts.Add(setInt((int)arg));
-						break;
-					case "System.Single":
-						if (float.IsPositiveInfinity((float)arg))
-						{
-							typeString += "I";
-						}
-						else
-						{
-							typeString += "f";
-							parts.Add(setFloat((float)arg));
-						}
-						break;
-					case "System.String":
-						typeString += "s";
-						parts.Add(setString((string)arg));
-						break;
-					case "System.Byte[]":
-						typeString += "b";
-						parts.Add(setBlob((byte[])arg));
-						break;
-					case "System.Int64":
-						typeString += "h";
-						parts.Add(setLong((Int64)arg));
-						break;
-					case "System.UInt64":
-						typeString += "t";
-						parts.Add(setULong((UInt64)arg));
-						break;
-					case "SharpOSC.Timetag":
-						typeString += "t";
-						parts.Add(setULong(((Timetag)arg).Tag));
-						break;
-					case "System.Double":
-						if (Double.IsPositiveInfinity((double)arg))
-						{
-							typeString += "I";
-						}
-						else
-						{
-							typeString += "d";
-							parts.Add(setDouble((double)arg));
-						}
-						break;
+            case 'i':
+                arguments.Add(Deserializer.GetInt(buffer, bufferIndex));
+                bufferIndex += sizeof(int);
+                break;
 
-					case "SharpOSC.Symbol":
-						typeString += "S";
-						parts.Add(setString(((Symbol)arg).Value));
-						break;
+            case 'f':
+                arguments.Add(Deserializer.GetFloat(buffer, bufferIndex));
+                bufferIndex += sizeof(int);
+                break;
 
-					case "System.Char":
-						typeString += "c";
-						parts.Add(setChar((char)arg));
-						break;
-					case "SharpOSC.RGBA":
-						typeString += "r";
-						parts.Add(setRGBA((RGBA)arg));
-						break;
-					case "SharpOSC.Midi":
-						typeString += "m";
-						parts.Add(setMidi((Midi)arg));
-						break;
-					case "System.Boolean":
-						typeString += ((bool)arg) ? "T" : "F";
-						break;
-					case "null":
-						typeString += "N";
-						break;
+            case 's':
+                string stringVal = Deserializer.GetString(buffer, bufferIndex)!;
+                arguments.Add(stringVal);
+                bufferIndex += stringVal.Length;
+                break;
 
-					// This part handles arrays. It points currentList to the array and resets i
-					// The array is processed like normal and when it is finished we replace  
-					// currentList back with Arguments and continue from where we left off
-					case "System.Object[]":
-					case "System.Collections.Generic.List`1[System.Object]":
-						if(arg.GetType() == typeof(object[]))
-							arg = ((object[])arg).ToList();
+            case 'b':
+                var blob = Deserializer.GetBlob(buffer, bufferIndex);
+                arguments.Add(blob.ToArray());
+                bufferIndex += sizeof(int) + blob.Length;
+                break;
 
-						if (Arguments != currentList)
-							throw new Exception("Nested Arrays are not supported");
-						typeString += "[";
-						currentList = (List<object>)arg;
-						ArgumentsIndex = i;
-						i = 0;
-						continue;
+            case 'h':
+                arguments.Add(Deserializer.GetLong(buffer, bufferIndex));
+                bufferIndex += sizeof(long);
+                break;
 
-					default:
-						throw new Exception("Unable to transmit values of type " + type);
-				}
+            case 't':
+                arguments.Add(new Timetag(Deserializer.GetULong(buffer, bufferIndex)));
+                bufferIndex += sizeof(ulong);
+                break;
 
-				i++;
-				if (currentList != Arguments && i == currentList.Count)
-				{ 
-					// End of array, go back to main Argument list
-					typeString += "]";
-					currentList = Arguments;
-					i = ArgumentsIndex+1;
-				}
-			}
+            case 'd':
+                arguments.Add(Deserializer.GetDouble(buffer, bufferIndex));
+                bufferIndex += sizeof(double);
+                break;
 
-			int addressLen = (Address.Length == 0 || Address == null ) ? 0 : Utils.AlignedStringLength(Address);
-			int typeLen = Utils.AlignedStringLength(typeString);
+            case 'S':
+                string value = Deserializer.GetString(buffer, bufferIndex)!;
+                arguments.Add(new Symbol(value));
+                bufferIndex += value.Length;
+                break;
 
-			int total = addressLen + typeLen + parts.Sum(x => x.Length);
-			
-			byte[] output = new byte[total];
-			i = 0;
+            case 'c':
+                arguments.Add(Deserializer.GetChar(buffer, bufferIndex));
+                bufferIndex += 4;
+                break;
 
-			Encoding.ASCII.GetBytes(Address).CopyTo(output, i);
-			i += addressLen;
+            case 'r':
+                arguments.Add(Deserializer.GetRGBA(buffer, bufferIndex));
+                bufferIndex += 4;
+                break;
 
-			Encoding.ASCII.GetBytes(typeString).CopyTo(output, i);
-			i += typeLen;
+            case 'm':
+                arguments.Add(Deserializer.GetMidi(buffer, bufferIndex));
+                bufferIndex += 4;
+                break;
 
-			foreach (byte[] part in parts)
-			{
-				part.CopyTo(output, i);
-				i += part.Length;
-			}
+            case 'T':
+                arguments.Add(true);
+                break;
 
-			return output;
-		}
-	}
+            case 'F':
+                arguments.Add(false);
+                break;
+
+            case 'N':
+                arguments.Add(null);
+                break;
+
+            case 'I':
+                arguments.Add(double.PositiveInfinity);
+                break;
+
+            case '[':
+                List<object?> _arguments = new();
+                while (types[typeIndex] != ']')
+                {
+                    DeserializeArgument(buffer, types, ref typeIndex, ref bufferIndex, _arguments);
+                }
+                typeIndex++;
+                arguments.Add(_arguments.ToArray());
+                break;
+
+            case ']':
+                throw new Exception($"Unexpected OSC type tag '{type}'.");
+
+            default:
+                throw new Exception($"OSC type tag '{type}' is unknown.");
+        }
+
+        while (bufferIndex % Padding != 0) bufferIndex++;
+    }
+
+    /// <summary>
+    /// Takes in an OSC bundle package in byte form and parses it into a more usable OscBundle object
+    /// </summary>
+    /// <returns>
+    /// Message containing various arguments and an address
+    /// </returns>
+    public static OscMessage Deserialize(ReadOnlySpan<byte> buffer)
+    {
+        int bufferIndex = 0;
+
+        string? address = null;
+        List<object?> arguments = new();
+        List<object?> mainArray = arguments; // used as a reference when we are parsing arrays to get the main array back
+
+        // Get address
+        address = Deserializer.GetAddress(buffer, bufferIndex);
+        bufferIndex += FirstIndexAfter(buffer, address.Length, x => x == ',');
+
+        if (bufferIndex % Padding != 0) throw new Exception($"Misaligned OSC Packet data. Address string is not padded correctly and does not align to {Padding} byte interval");
+
+        // Get type tags
+        int typesLength = Deserializer.GetTypesLength(buffer, bufferIndex);
+        Span<char> types = stackalloc char[typesLength];
+        typesLength = Deserializer.GetTypes(buffer, bufferIndex, types);
+        types = types[..typesLength];
+        bufferIndex += types.Length;
+
+        while (bufferIndex % Padding != 0) bufferIndex++;
+
+        int typeIndex = 0;
+
+        if (types[0] == ',') typeIndex++;
+
+        while (typeIndex < types.Length)
+        {
+            DeserializeArgument(buffer, types, ref typeIndex, ref bufferIndex, arguments);
+        }
+
+        return new OscMessage(address, arguments.ToArray());
+    }
+
+    static void SerializeArgument(object? argument, List<byte> buffer, StringBuilder types)
+    {
+        switch (argument)
+        {
+            case int v:
+                types.Append('i');
+                Serializer.SetInt(v, buffer);
+                break;
+            case float v:
+                if (float.IsPositiveInfinity(v))
+                {
+                    types.Append('I');
+                }
+                else
+                {
+                    types.Append('f');
+                    Serializer.SetFloat(v, buffer);
+                }
+                break;
+            case string v:
+                types.Append('s');
+                Serializer.SetString(v, buffer);
+                break;
+            case byte[] v:
+                types.Append('b');
+                Serializer.SetBlob(v, buffer);
+                break;
+            case long v:
+                types.Append('h');
+                Serializer.SetLong(v, buffer);
+                break;
+            case ulong v:
+                types.Append('t');
+                Serializer.SetULong(v, buffer);
+                break;
+            case Timetag v:
+                types.Append('t');
+                Serializer.SetULong(v.Tag, buffer);
+                break;
+            case double v:
+                if (double.IsPositiveInfinity(v))
+                {
+                    types.Append('I');
+                }
+                else
+                {
+                    types.Append('d');
+                    Serializer.SetDouble(v, buffer);
+                }
+                break;
+
+            case Symbol v:
+                types.Append('S');
+                Serializer.SetString(v.Value, buffer);
+                break;
+
+            case char v:
+                types.Append('c');
+                Serializer.SetChar(v, buffer);
+                break;
+            case RGBA v:
+                types.Append('r');
+                Serializer.SetRGBA(v, buffer);
+                break;
+            case Midi v:
+                types.Append('m');
+                Serializer.SetMidi(v, buffer);
+                break;
+            case bool v:
+                types.Append(v ? "T" : "F");
+                break;
+            case null:
+                types.Append('N');
+                break;
+
+            case object?[] v:
+                types.Append('[');
+                foreach (object? item in v)
+                {
+                    SerializeArgument(item, buffer, types);
+                }
+                types.Append(']');
+                break;
+
+            case List<object?> v:
+                types.Append('[');
+                foreach (object? item in v)
+                {
+                    SerializeArgument(item, buffer, types);
+                }
+                types.Append(']');
+                break;
+
+            default:
+                throw new Exception($"Unable to transmit values of type {argument.GetType()}");
+        }
+    }
+
+    public override byte[] Serialize()
+    {
+        List<byte> buffer = new();
+
+        StringBuilder typesBuilder = new();
+        typesBuilder.Append(',');
+
+        foreach (object? argument in Arguments)
+        {
+            SerializeArgument(argument, buffer, typesBuilder);
+        }
+
+        string typesString = typesBuilder.ToString();
+
+        int addressLength = (Address.Length == 0) ? 0 : Utils.AlignedStringLength(Address);
+        int typeLength = Utils.AlignedStringLength(typesString);
+
+        byte[] result = new byte[addressLength + typeLength + buffer.Count];
+        int i = 0;
+
+        Encoding.ASCII.GetBytes(Address, result.AsSpan()[i..]);
+        i += addressLength;
+
+        Encoding.ASCII.GetBytes(typesString, result.AsSpan()[i..]);
+        i += typeLength;
+
+        buffer.CopyTo(result, i);
+
+        return result;
+    }
 }

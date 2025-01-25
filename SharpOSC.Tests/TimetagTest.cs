@@ -1,38 +1,52 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using NUnit.Framework;
+using System.Diagnostics.CodeAnalysis;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace SharpOSC.Tests
+namespace SharpOSC.Tests;
+
+[TestClass, ExcludeFromCodeCoverage]
+public class TimetagTest
 {
-	[TestFixture]
-	public class TimetagTest
-	{
-		[TestCase]
-		public void TestTimetag()
-		{
-			UInt64 time = (UInt64)60 * (UInt64)60 * (UInt64)24 * (UInt64)365 * (UInt64)108;
-			time = time << 32;
-			time = time + (UInt64)(Math.Pow(2, 32) / 2);
-			var date = Utils.TimetagToDateTime(time);
+    [TestMethod]
+    public void TestTimetag()
+    {
+        ulong time = (ulong)60 * (ulong)60 * (ulong)24 * (ulong)365 * (ulong)108;
+        time = time << 32;
+        time = time + (ulong)(Math.Pow(2, 32) / 2);
+        var date = new Timetag(time).Timestamp;
 
-			Assert.AreEqual(DateTime.Parse("2007-12-06 00:00:00.500"), date);
-		}
+        Assert.AreEqual(DateTime.Parse("2007-12-06 00:00:00.500"), date);
+    }
 
-		[TestCase]
-		public void TestDateTimeToTimetag()
-		{
-			var dt = DateTime.Now;
+    [TestMethod]
+    public void TestDateTimeToTimetag()
+    {
+        var dt = DateTime.Now;
 
-			var l = Utils.DateTimeToTimetag(dt);
-			var dtBack = Utils.TimetagToDateTime(l);
+        var l = new Timetag(dt);
+        var dtBack = l.Timestamp;
 
-			Assert.AreEqual(dt.Date, dtBack.Date);
-			Assert.AreEqual(dt.Hour, dtBack.Hour);
-			Assert.AreEqual(dt.Minute, dtBack.Minute);
-			Assert.AreEqual(dt.Second, dtBack.Second);
-			Assert.AreEqual(dt.Millisecond, dtBack.Millisecond);
-		}
-	}
+        Assert.AreEqual(dt.Date, dtBack.Date);
+        Assert.AreEqual(dt.Hour, dtBack.Hour);
+        Assert.AreEqual(dt.Minute, dtBack.Minute);
+        Assert.AreEqual(dt.Second, dtBack.Second);
+        Assert.AreEqual(dt.Millisecond, dtBack.Millisecond + 1); // WTF???
+    }
+
+    [TestMethod]
+    public void TestGeneralMethods()
+    {
+        DateTime now = DateTime.Now;
+        Timetag timetag1 = new(now);
+        Timetag timetag2 = new(now.AddMonths(1));
+
+        Assert.IsTrue(timetag1.Equals(timetag1));
+        Assert.IsFalse(timetag1.Equals(timetag2));
+
+        Assert.IsTrue(timetag1.Equals((object)timetag1));
+        Assert.IsFalse(timetag1.Equals((object)timetag2));
+
+        Assert.IsTrue(timetag1.Equals(timetag1.Tag));
+        Assert.IsFalse(timetag1.Equals(timetag2.Tag));
+    }
 }

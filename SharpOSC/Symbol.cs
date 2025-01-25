@@ -1,68 +1,25 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Diagnostics.CodeAnalysis;
 
-namespace SharpOSC
+namespace SharpOSC;
+
+public readonly struct Symbol(string value) : IEquatable<Symbol>, IEquatable<string>
 {
-	public class Symbol
-	{
-		public string Value;
+    public readonly string Value = value;
 
-		public Symbol()
-		{
-			Value = "";
-		}
+    public override bool Equals([NotNullWhen(true)] object? obj) => obj switch
+    {
+        null => false,
+        Symbol v => Value.Equals(v.Value),
+        string v => Value.Equals(v),
+        _ => false
+    };
 
-		public Symbol(string value)
-		{
-			this.Value = value;
-		}
+    public static bool operator ==(Symbol a, Symbol b) => a.Equals(b);
+    public static bool operator !=(Symbol a, Symbol b) => !a.Equals(b);
 
-		public string ToString()
-		{
-			return Value;
-		}
-
-		public override bool Equals(System.Object obj)
-		{
-			if (obj.GetType() == typeof(Symbol))
-			{
-				if (this.Value == ((Symbol)obj).Value)
-					return true;
-				else
-					return false;
-			}
-			else if (obj.GetType() == typeof(string))
-			{
-				if (this.Value == ((string)obj))
-					return true;
-				else
-					return false;
-			}
-			else
-				return false;
-		}
-
-		public static bool operator ==(Symbol a, Symbol b)
-		{
-			if (a.Equals(b))
-				return true;
-			else
-				return false;
-		}
-
-		public static bool operator !=(Symbol a, Symbol b)
-		{
-			if (!a.Equals(b))
-				return true;
-			else
-				return false;
-		}
-
-		public override int GetHashCode()
-		{
-			return Value.GetHashCode();
-		}
-	}
+    public override int GetHashCode() => Value.GetHashCode();
+    public override string ToString() => Value;
+    public bool Equals(Symbol other) => Value.Equals(other.Value);
+    public bool Equals(string? other) => Value.Equals(other);
 }

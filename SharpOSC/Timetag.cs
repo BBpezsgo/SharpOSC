@@ -1,92 +1,74 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Diagnostics.CodeAnalysis;
 
-namespace SharpOSC
+namespace SharpOSC;
+
+public readonly struct Timetag : IEquatable<Timetag>, IEquatable<ulong>
 {
-	public struct Timetag
-	{
-		public UInt64 Tag;
+    public readonly ulong Tag;
 
-		public DateTime Timestamp
-		{
-			get
-			{
-				return Utils.TimetagToDateTime(Tag);
-			}
-			set
-			{
-				Tag = Utils.DateTimeToTimetag(value);
-			}
-		}
+    public DateTime Timestamp
+    {
+        get
+        {
+            if (Tag == 1) return DateTime.Now;
 
-		/// <summary>
-		/// Gets or sets the fraction of a second in the timestamp. the double precision number is multiplied by 2^32
-		/// giving an accuracy down to about 230 picoseconds ( 1/(2^32) of a second)
-		/// </summary>
-		public double Fraction
-		{
-			get
-			{
-				return Utils.TimetagToFraction(Tag);
-			}
-			set
-			{
-				Tag = (Tag & 0xFFFFFFFF00000000) + (UInt32)(value * 0xFFFFFFFF);
-			}
-		}
+            uint seconds = (uint)(Tag >> 32);
+            var time = DateTime.Parse("1900-01-01 00:00:00");
+            time = time.AddSeconds(seconds);
 
-		public Timetag(UInt64 value)
-		{
-			this.Tag = value;
-		}
+            double fraction = (double)(Tag & 0x00000000FFFFFFFF) / (double)0xFFFFFFFF;
+            time = time.AddSeconds(fraction);
 
-		public Timetag(DateTime value)
-		{
-			Tag = 0;
-			this.Timestamp = value;
-		}
+            return time;
+        }
+    }
 
-		public override bool Equals(System.Object obj)
-		{
-			if (obj.GetType() == typeof(Timetag))
-			{
-				if (this.Tag == ((Timetag)obj).Tag)
-					return true;
-				else
-					return false;
-			}
-			else if (obj.GetType() == typeof(UInt64))
-			{
-				if (this.Tag == ((UInt64)obj))
-					return true;
-				else
-					return false;
-			}
-			else
-				return false;
-		}
+    /// <summary>
+    /// Gets or sets the fraction of a second in the timestamp. the double precision number is multiplied by 2^32
+    /// giving an accuracy down to about 230 picoseconds ( 1/(2^32) of a second)
+    /// </summary>
+    public double Fraction
+    {
+        get
+        {
+            if (Tag == 1) return 0d;
+            uint seconds = (uint)(Tag & 0x00000000FFFFFFFF);
+            double fraction = (double)seconds / (uint)0xFFFFFFFF;
+            return fraction;
+        }
+    }
 
-		public static bool operator ==(Timetag a, Timetag b)
-		{
-			if (a.Equals(b))
-				return true;
-			else
-				return false;
-		}
+    public Timetag(ulong value)
+    {
+        Tag = value;
+    }
 
-		public static bool operator !=(Timetag a, Timetag b)
-		{
-			if (a.Equals(b))
-				return true;
-			else
-				return false;
-		}
+    public Timetag(DateTime value)
+    {
+        ulong seconds = (uint)(value - DateTime.Parse("1900-01-01 00:00:00.000")).TotalSeconds;
+        ulong fraction = (uint)(0xFFFFFFFF * ((double)value.Millisecond / 1000));
 
-		public override int GetHashCode()
-		{
-			return (int)( ((uint)(Tag >> 32) + (uint)(Tag & 0x00000000FFFFFFFF)) / 2);
-		}
-	}
+        ulong output = (seconds << 32) + fraction;
+        Tag = output;
+    }
+
+    public Timetag AddFraction(double value) => new((Tag & 0xFFFFFFFF00000000) + (uint)(value * 0xFFFFFFFF));
+
+    public override bool Equals([NotNullWhen(true)] object? obj) => obj switch
+    {
+        null => false,
+        Timetag v => Tag == v.Tag,
+        ulong v => Tag == v,
+        _ => false
+    };
+
+    public static bool operator ==(Timetag a, Timetag b) => a.Equals(b);
+    public static bool operator !=(Timetag a, Timetag b) => a.Equals(b);
+
+    public override int GetHashCode() => (int)(((uint)(Tag >> 32) + (uint)(Tag & 0x00000000FFFFFFFF)) / 2);
+    public override string ToString() => $"{Timestamp} ({Tag})";
+
+    public bool Equals(Timetag other) => Tag == other.Tag;
+    public bool Equals(ulong other) => Tag == other;
 }
