@@ -275,6 +275,17 @@ public class OscMessage : OscPacket
                 types.Append(']');
                 break;
 
+            case System.Numerics.Vector2 v:
+                SerializeArgument(v.X, buffer, types);
+                SerializeArgument(v.Y, buffer, types);
+                break;
+
+            case System.Numerics.Vector3 v:
+                SerializeArgument(v.X, buffer, types);
+                SerializeArgument(v.Y, buffer, types);
+                SerializeArgument(v.Z, buffer, types);
+                break;
+
             default:
                 throw new Exception($"Unable to transmit values of type {argument.GetType()}");
         }
