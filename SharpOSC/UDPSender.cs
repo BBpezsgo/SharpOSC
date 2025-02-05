@@ -21,7 +21,7 @@ public readonly struct UDPSender : IDisposable
 
     public void Send(byte[] message) => _socket.SendTo(message, _remoteEP);
 
-    public void Send(OscPacket packet) => Send(packet.Serialize());
+    public void Send(IOscPacket packet) => Send(packet.Serialize());
 
     public void Dispose() => _socket.Dispose();
 }

@@ -50,7 +50,7 @@ public static class Serializer
         SetInt(value.Length, buffer);
         buffer.AddRange(value);
 
-        AddPadding(OscPacket.Padding - len % OscPacket.Padding, buffer);
+        AddPadding(IOscPacket.Padding - len % IOscPacket.Padding, buffer);
     }
 
     public static void SetLong(long value, List<byte> buffer)

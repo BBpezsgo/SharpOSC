@@ -5,18 +5,12 @@ using System.Text;
 
 namespace SharpOSC;
 
-public class OscMessage : OscPacket
+public class OscMessage : IOscPacket
 {
     public readonly string Address;
     public readonly ImmutableArray<object?> Arguments;
 
-    public OscMessage(string address, params object?[] args)
-    {
-        Address = address;
-        Arguments = args.ToImmutableArray();
-    }
-
-    public OscMessage(string address, ImmutableArray<object?> args)
+    public OscMessage(string address, params ImmutableArray<object?> args)
     {
         Address = address;
         Arguments = args;
@@ -138,7 +132,7 @@ public class OscMessage : OscPacket
                 throw new Exception($"OSC type tag '{type}' is unknown.");
         }
 
-        while (bufferIndex % Padding != 0) bufferIndex++;
+        while (bufferIndex % IOscPacket.Padding != 0) bufferIndex++;
     }
 
     /// <summary>
@@ -159,7 +153,7 @@ public class OscMessage : OscPacket
         address = Deserializer.GetAddress(buffer, bufferIndex);
         bufferIndex += FirstIndexAfter(buffer, address.Length, x => x == ',');
 
-        if (bufferIndex % Padding != 0) throw new Exception($"Misaligned OSC Packet data. Address string is not padded correctly and does not align to {Padding} byte interval");
+        if (bufferIndex % IOscPacket.Padding != 0) throw new Exception($"Misaligned OSC Packet data. Address string is not padded correctly and does not align to {IOscPacket.Padding} byte interval");
 
         // Get type tags
         int typesLength = Deserializer.GetTypesLength(buffer, bufferIndex);
@@ -168,7 +162,7 @@ public class OscMessage : OscPacket
         types = types[..typesLength];
         bufferIndex += types.Length;
 
-        while (bufferIndex % Padding != 0) bufferIndex++;
+        while (bufferIndex % IOscPacket.Padding != 0) bufferIndex++;
 
         int typeIndex = 0;
 
@@ -179,7 +173,7 @@ public class OscMessage : OscPacket
             DeserializeArgument(buffer, types, ref typeIndex, ref bufferIndex, arguments);
         }
 
-        return new OscMessage(address, arguments.ToArray());
+        return new OscMessage(address, arguments.ToImmutableArray());
     }
 
     static void SerializeArgument(object? argument, List<byte> buffer, StringBuilder types)
@@ -291,7 +285,7 @@ public class OscMessage : OscPacket
         }
     }
 
-    public override byte[] Serialize()
+    public byte[] Serialize()
     {
         List<byte> buffer = new();
 

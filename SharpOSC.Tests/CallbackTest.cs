@@ -13,7 +13,7 @@ public class CallbackTest
     {
         bool cbCalled = false;
 
-        void _callback(OscPacket? packet)
+        void _callback(IOscPacket? packet)
         {
             cbCalled = true;
             Assert.IsNotNull(packet);
@@ -45,7 +45,7 @@ public class CallbackTest
 
         void _callback(byte[] packet)
         {
-            var msg = (OscMessage)OscPacket.Deserialize(packet);
+            var msg = (OscMessage)IOscPacket.Deserialize(packet);
             AssertUtils.AreValueEquals(2, msg.Arguments.Length);
             AssertUtils.AreValueEquals(23, msg.Arguments[0]);
             AssertUtils.AreValueEquals("hello world", msg.Arguments[1]);

@@ -6,7 +6,7 @@ using System.Threading;
 
 namespace SharpOSC;
 
-public delegate void HandleOscPacket(OscPacket? packet);
+public delegate void HandleOscPacket(IOscPacket? packet);
 public delegate void HandleBytePacket(byte[] packet);
 
 public class UDPListener : IDisposable
@@ -86,10 +86,10 @@ public class UDPListener : IDisposable
             }
             else if (_oscPacketCallback != null)
             {
-                OscPacket? packet = null;
+                IOscPacket? packet = null;
                 try
                 {
-                    packet = OscPacket.Deserialize(bytes);
+                    packet = IOscPacket.Deserialize(bytes);
                 }
                 catch (Exception)
                 {
@@ -132,10 +132,10 @@ public class UDPListener : IDisposable
         _closingEvent.WaitOne();
     }
 
-    public OscPacket? Receive()
+    public IOscPacket? Receive()
     {
         byte[]? bytes = ReceiveBytes();
-        if (bytes is not null) return OscPacket.Deserialize(bytes);
+        if (bytes is not null) return IOscPacket.Deserialize(bytes);
         return null;
     }
 

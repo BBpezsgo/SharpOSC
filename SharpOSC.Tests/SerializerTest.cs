@@ -16,7 +16,7 @@ public class SerializerTest
         var msg = new OscMessage("/test/1", val);
         var bytes = msg.Serialize();
 
-        var msg2 = (OscMessage)OscPacket.Deserialize(bytes);
+        var msg2 = (OscMessage)IOscPacket.Deserialize(bytes);
         AssertUtils.AreValueEquals(val, (double)msg2.Arguments[0]!);
     }
 
@@ -28,7 +28,7 @@ public class SerializerTest
         var msg = new OscMessage("/test/1", blob);
         var bytes = msg.Serialize();
 
-        var msg2 = (OscMessage)OscPacket.Deserialize(bytes);
+        var msg2 = (OscMessage)IOscPacket.Deserialize(bytes);
         AssertUtils.AreValueEquals(blob, (byte[])msg2.Arguments[0]!);
     }
 
@@ -41,7 +41,7 @@ public class SerializerTest
         var msg = new OscMessage("/test/1", tag);
         var bytes = msg.Serialize();
 
-        var msg2 = (OscMessage)OscPacket.Deserialize(bytes);
+        var msg2 = (OscMessage)IOscPacket.Deserialize(bytes);
         AssertUtils.AreValueEquals(tag.Tag, ((Timetag)msg2.Arguments[0]!).Tag);
     }
 
@@ -52,7 +52,7 @@ public class SerializerTest
         var msg = new OscMessage("/test/1", num);
         var bytes = msg.Serialize();
 
-        var msg2 = (OscMessage)OscPacket.Deserialize(bytes);
+        var msg2 = (OscMessage)IOscPacket.Deserialize(bytes);
 
         AssertUtils.AreValueEquals(num, msg2.Arguments[0]);
     }
@@ -64,7 +64,7 @@ public class SerializerTest
         var msg = new OscMessage("/test/1", 9999, list, 24.24f);
         var bytes = msg.Serialize();
 
-        var msg2 = (OscMessage)OscPacket.Deserialize(bytes);
+        var msg2 = (OscMessage)IOscPacket.Deserialize(bytes);
 
         AssertUtils.AreValueEquals(9999, msg2.Arguments[0]);
         AssertUtils.AreValueEquals(list, msg2.Arguments[1]);
@@ -78,7 +78,7 @@ public class SerializerTest
         var msg = new OscMessage(string.Empty, 9999, 24.24f);
         var bytes = msg.Serialize();
 
-        var msg2 = (OscMessage)OscPacket.Deserialize(bytes);
+        var msg2 = (OscMessage)IOscPacket.Deserialize(bytes);
 
         AssertUtils.AreValueEquals(string.Empty, msg2.Address);
         AssertUtils.AreValueEquals(9999, msg2.Arguments[0]);

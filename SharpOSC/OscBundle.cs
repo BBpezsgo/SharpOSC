@@ -1,31 +1,32 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 
 namespace SharpOSC;
 
-public class OscBundle : OscPacket
+public class OscBundle : IOscPacket
 {
     readonly Timetag Timetag;
-    public readonly List<OscMessage> Messages;
+    public readonly ImmutableArray<OscMessage> Messages;
     public DateTime Timestamp => Timetag.Timestamp;
 
-    public OscBundle(ulong timetag, params OscMessage[] args)
+    public OscBundle(ulong timetag, params ImmutableArray<OscMessage> args)
     {
-        Timetag = new Timetag(timetag);
-        Messages = new(args);
+        Timetag = new(timetag);
+        Messages = args;
     }
 
-    public override byte[] Serialize()
+    public byte[] Serialize()
     {
         string bundle = "#bundle";
         int bundleTagLen = Utils.AlignedStringLength(bundle);
         var tag = new List<byte>();
         Serializer.SetULong(Timetag.Tag, tag);
 
-        byte[][] outMessages = new byte[Messages.Count][];
-        for (int i = 0; i < Messages.Count; i++)
+        byte[][] outMessages = new byte[Messages.Length][];
+        for (int i = 0; i < Messages.Length; i++)
         {
             OscMessage msg = Messages[i];
             outMessages[i] = msg.Serialize();
@@ -87,7 +88,6 @@ public class OscBundle : OscPacket
             while (index % 4 != 0) index++;
         }
 
-        OscBundle output = new OscBundle(timetag, messages.ToArray());
-        return output;
+        return new OscBundle(timetag, messages.ToImmutableArray());
     }
 }
