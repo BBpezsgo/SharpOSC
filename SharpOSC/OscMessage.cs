@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Text;
 
 namespace SharpOSC;
@@ -315,4 +316,6 @@ public class OscMessage : IOscPacket
 
         return result;
     }
+
+    public override string ToString() => $"{Address}{string.Join(null, Arguments.Select(v => $" {v}"))}";
 }
